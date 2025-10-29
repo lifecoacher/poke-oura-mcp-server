@@ -1,0 +1,22 @@
+# Render.com deployment configuration
+services:
+  - type: web
+    name: poke-oura-mcp-server
+    env: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: OURA_TOKEN
+        sync: false
+      - key: SLEEP_SCORE_THRESHOLD
+        value: 70
+      - key: MIN_TOTAL_SLEEP_MIN
+        value: 360
+      - key: MAX_SLEEP_LATENCY_MIN
+        value: 30
+      - key: POOR_NIGHTS_STREAK
+        value: 3
+      - key: TIMEZONE
+        value: America/New_York

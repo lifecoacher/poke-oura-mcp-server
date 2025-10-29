@@ -1,0 +1,40 @@
+name: Deploy and Health Check
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Trigger deployment
+        run: echo "Deployment triggered for commit ${{ github.sha }}"
+      
+      # Add your deployment steps here
+      # e.g., deploy to Render.com, AWS, etc.
+  
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    
+    steps:
+      - name: Wait for deployment
+        run: sleep 60
+      
+      - name: Check health endpoint
+        run: |
+          echo "Performing health check..."
+          # curl -f https://your-deployment-url.com/health || exit 1
+      
+      - name: Report status
+        if: always()
+        run: echo "Health check completed"

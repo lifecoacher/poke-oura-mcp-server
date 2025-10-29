@@ -1,8 +1,6 @@
 import Fastify from 'fastify';
 
-const fastify = Fastify({
-  logger: true
-});
+const fastify = Fastify({ logger: true });
 
 // Configuration from environment variables
 const PORT = process.env.PORT || 3000;
@@ -10,6 +8,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Health check endpoint
 fastify.get('/healthz', async (request, reply) => {
+  return { ok: true };
+});
+
+// MCP base endpoint
+fastify.get('/mcp', async (request, reply) => {
   return { ok: true };
 });
 

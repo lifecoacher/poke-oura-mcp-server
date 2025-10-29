@@ -13,11 +13,13 @@ fastify.get('/healthz', async (request, reply) => {
 
 // MCP base endpoint
 fastify.get('/mcp', async (request, reply) => {
+  reply.type('application/json');
   return { ok: true };
 });
 
 // List available MCP tools
 fastify.get('/mcp/tools', async (request, reply) => {
+  reply.type('application/json');
   return {
     tools: [
       {
@@ -78,30 +80,29 @@ function handleOuraSleepCheck(args) {
   const alert = forceAlert || sleepScore < 70;
   
   return {
-    sleep_score: sleepScore,
-    total_sleep_min: totalSleepMin,
-    recommendation: recommendation,
-    alert: alert,
+    sleepScore,
+    totalSleepHours: (totalSleepMin / 60).toFixed(1),
+    recommendation,
+    alert,
     message: alert 
-      ? `Low sleep score (${sleepScore}). Consider resting today.` 
-      : `Good sleep score (${sleepScore}). Ready to train!`
+      ? `⚠️ Sleep score is ${sleepScore}. Consider resting today.`
+      : `✅ Sleep score is ${sleepScore}. You're good to train!`
   };
 }
 
 // Handler for oura_sleep_summary tool
 function handleOuraSleepSummary(args) {
-  // Placeholder weekly summary (would come from Oura API integration)
+  // Placeholder data (would come from Oura API integration)
   return {
-    period: 'last_7_days',
-    average_sleep_score: 82,
-    average_sleep_duration_min: 420,
-    total_nights: 7,
-    nights_below_threshold: 2,
-    summary: 'Week summary stub - placeholder for real Oura API integration'
+    weeklyAverage: 82,
+    trend: 'improving',
+    daysWithGoodSleep: 5,
+    daysWithPoorSleep: 2,
+    message: '📊 Your sleep has been improving this week. Keep it up!'
   };
 }
 
-// Start the server
+// Start server
 const start = async () => {
   try {
     await fastify.listen({ port: PORT, host: HOST });

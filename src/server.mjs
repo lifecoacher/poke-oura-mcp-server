@@ -11,10 +11,15 @@ fastify.get('/healthz', async (request, reply) => {
   return { ok: true };
 });
 
-// MCP base endpoint
+// MCP base endpoint - returns server manifest
 fastify.get('/mcp', async (request, reply) => {
   reply.type('application/json');
-  return { ok: true };
+  return {
+    name: 'oura_mcp_server',
+    version: '1.0.0',
+    description: 'Oura Ring MCP Server for sleep tracking and training recommendations',
+    ok: true
+  };
 });
 
 // List available MCP tools

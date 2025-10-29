@@ -1,0 +1,30 @@
+name: Generate package-lock.json
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Delete existing incomplete lockfile
+        run: rm -f package-lock.json
+        
+      - name: Generate complete package-lock.json
+        run: npm install --package-lock-only
+        
+      - name: Commit and push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package-lock.json
+          git commit -m "Generate complete package-lock.json" || echo "No changes to commit"
+          git push

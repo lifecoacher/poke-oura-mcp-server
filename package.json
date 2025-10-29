@@ -1,0 +1,27 @@
+{
+  "name": "poke-oura-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Oura Ring sleep monitoring and alerts",
+  "type": "module",
+  "main": "src/server.mjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs"
+  },
+  "dependencies": {
+    "fastify": "^4.25.0",
+    "node-fetch": "^3.3.2"
+  },
+  "keywords": [
+    "oura",
+    "sleep",
+    "mcp",
+    "health",
+    "monitoring"
+  ],
+  "author": "",
+  "license": "MIT"
+}

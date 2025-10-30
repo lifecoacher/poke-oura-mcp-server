@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+
 const fastify = Fastify({ logger: true });
 
 // Register CORS plugin with poke.com origin
@@ -22,6 +23,30 @@ const HOST = process.env.HOST || '0.0.0.0';
 // Health check endpoint
 fastify.get('/healthz', async (request, reply) => {
   return { ok: true };
+});
+
+// OAuth discovery endpoints for Poke integration
+fastify.get('/.well-known/oauth-protected-resource', async (request, reply) => {
+  return {
+    resource: 'https://poke-oura-mcp-server.onrender.com',
+    authorization_servers: ['https://poke-oura-mcp-server.onrender.com']
+  };
+});
+
+fastify.get('/.well-known/oauth-authorization-server', async (request, reply) => {
+  return {
+    issuer: 'https://poke-oura-mcp-server.onrender.com',
+    token_endpoint: 'https://poke-oura-mcp-server.onrender.com/token'
+  };
+});
+
+// Health and status endpoints
+fastify.get('/health', async (request, reply) => {
+  return { status: 'ok', timestamp: new Date().toISOString() };
+});
+
+fastify.get('/status', async (request, reply) => {
+  return { status: 'ok', service: 'oura-mcp-server' };
 });
 
 // MCP base endpoint - returns server manifest
@@ -135,9 +160,11 @@ fastify.route({
             case 'oura_sleep_check':
               result = handleOuraSleepCheck(args);
               break;
+
             case 'oura_sleep_summary':
               result = handleOuraSleepSummary(args);
               break;
+
             default:
               return reply.code(404).send({
                 jsonrpc: '2.0',
@@ -238,9 +265,11 @@ fastify.post('/messages', async (request, reply) => {
         case 'oura_sleep_check':
           result = handleOuraSleepCheck(args);
           break;
+
         case 'oura_sleep_summary':
           result = handleOuraSleepSummary(args);
           break;
+
         default:
           return reply.code(404).send({
             jsonrpc: '2.0',

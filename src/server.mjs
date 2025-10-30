@@ -22,7 +22,7 @@ fastify.get('/mcp', async (request, reply) => {
 });
 
 // SSE endpoint for MCP protocol
-fastify.get('/mcp/sse', async (request, reply) => {
+fastify.get('/sse', async (request, reply) => {
   reply.raw.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -30,22 +30,7 @@ fastify.get('/mcp/sse', async (request, reply) => {
   });
 
   // Send initial connection message
-  const initialMessage = {
-    jsonrpc: '2.0',
-    method: 'notifications/initialized',
-    params: {
-      protocolVersion: '2024-11-05',
-      capabilities: {
-        tools: {}
-      },
-      serverInfo: {
-        name: 'oura_mcp_server',
-        version: '1.0.0'
-      }
-    }
-  };
-  
-  reply.raw.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
+  reply.raw.write('event: endpoint\ndata: /messages\n\n');
 
   // Keep connection alive with periodic heartbeats
   const heartbeatInterval = setInterval(() => {
@@ -58,7 +43,7 @@ fastify.get('/mcp/sse', async (request, reply) => {
 });
 
 // MCP JSON-RPC endpoint for tool calls
-fastify.post('/mcp/message', async (request, reply) => {
+fastify.post('/messages', async (request, reply) => {
   const { jsonrpc, id, method, params } = request.body;
 
   if (jsonrpc !== '2.0') {
@@ -103,15 +88,17 @@ fastify.post('/mcp/message', async (request, reply) => {
 
     case 'tools/call':
       const { name, arguments: args = {} } = params;
-      let result;
 
+      let result;
       switch (name) {
         case 'oura_sleep_check':
           result = handleOuraSleepCheck(args);
           break;
+
         case 'oura_sleep_summary':
           result = handleOuraSleepSummary(args);
           break;
+
         default:
           return reply.code(404).send({
             jsonrpc: '2.0',

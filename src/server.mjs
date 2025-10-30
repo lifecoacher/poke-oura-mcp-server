@@ -1,5 +1,20 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
+
 const fastify = Fastify({ logger: true });
+
+// Register CORS plugin with poke.com origin
+await fastify.register(cors, {
+  origin: (origin, callback) => {
+    const allowedOrigins = ['http://poke.com', 'https://poke.com', 'http://localhost', 'http://localhost:3000', 'http://127.0.0.1', 'http://127.0.0.1:3000'];
+    if (!origin || allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'), false);
+    }
+  },
+  credentials: true
+});
 
 // Configuration from environment variables
 const PORT = process.env.PORT || 3000;
@@ -23,6 +38,14 @@ fastify.get('/mcp', async (request, reply) => {
 
 // SSE endpoint for MCP protocol
 fastify.get('/sse', async (request, reply) => {
+  // Validate Origin header
+  const origin = request.headers.origin;
+  const allowedOrigins = ['http://poke.com', 'https://poke.com', 'http://localhost', 'http://localhost:3000', 'http://127.0.0.1', 'http://127.0.0.1:3000'];
+  
+  if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+    return reply.code(403).send({ error: 'Origin not allowed' });
+  }
+
   reply.raw.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -88,8 +111,8 @@ fastify.post('/messages', async (request, reply) => {
 
     case 'tools/call':
       const { name, arguments: args = {} } = params;
-
       let result;
+
       switch (name) {
         case 'oura_sleep_check':
           result = handleOuraSleepCheck(args);

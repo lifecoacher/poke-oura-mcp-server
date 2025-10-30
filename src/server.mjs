@@ -29,14 +29,20 @@ fastify.get('/healthz', async (request, reply) => {
 fastify.get('/.well-known/oauth-protected-resource', async (request, reply) => {
   return {
     resource: 'https://poke-oura-mcp-server.onrender.com',
-    authorization_servers: ['https://poke-oura-mcp-server.onrender.com']
+    authorization_servers: ['https://poke-oura-mcp-server.onrender.com'],
+    scopes_supported: ['mcp'],
+    bearer_methods_supported: ['header'],
+    resource_documentation: 'https://poke-oura-mcp-server.onrender.com/mcp'
   };
 });
 
 fastify.get('/.well-known/oauth-authorization-server', async (request, reply) => {
   return {
     issuer: 'https://poke-oura-mcp-server.onrender.com',
-    token_endpoint: 'https://poke-oura-mcp-server.onrender.com/token'
+    token_endpoint: 'https://poke-oura-mcp-server.onrender.com/token',
+    scopes_supported: ['mcp'],
+    response_types_supported: ['none'],
+    grant_types_supported: ['client_credentials']
   };
 });
 

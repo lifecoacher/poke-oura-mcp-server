@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+
 const fastify = Fastify({ logger: true });
+
 // Register CORS plugin with poke.com origin
 await fastify.register(cors, {
   origin: (origin, callback) => {
@@ -13,13 +15,16 @@ await fastify.register(cors, {
   },
   credentials: true
 });
+
 // Configuration from environment variables
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
+
 // Health check endpoint
 fastify.get('/healthz', async (request, reply) => {
   return { ok: true };
 });
+
 // OAuth discovery endpoints for Poke integration
 fastify.get('/.well-known/oauth-protected-resource', async (request, reply) => {
   return {
@@ -30,6 +35,7 @@ fastify.get('/.well-known/oauth-protected-resource', async (request, reply) => {
     resource_documentation: 'https://poke-oura-mcp-server.onrender.com/mcp'
   };
 });
+
 fastify.get('/.well-known/oauth-protected-resource/mcp', async (request, reply) => {
   return {
     resource: 'https://poke-oura-mcp-server.onrender.com/mcp',
@@ -39,6 +45,7 @@ fastify.get('/.well-known/oauth-protected-resource/mcp', async (request, reply) 
     resource_documentation: 'https://poke-oura-mcp-server.onrender.com/mcp'
   };
 });
+
 fastify.get('/.well-known/oauth-authorization-server', async (request, reply) => {
   return {
     issuer: 'https://poke-oura-mcp-server.onrender.com',
@@ -48,298 +55,76 @@ fastify.get('/.well-known/oauth-authorization-server', async (request, reply) =>
     grant_types_supported: ['client_credentials']
   };
 });
+
 // Health and status endpoints
 fastify.get('/health', async (request, reply) => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
-fastify.get('/status', async (request, reply) => {
-  return { status: 'ok', service: 'oura-mcp-server' };
-});
-// OAuth token endpoint
+
+// Token endpoint for OAuth
 fastify.post('/token', async (request, reply) => {
-  // For MCP without real OAuth, return a simple acknowledgment
   return {
-    access_token: 'mcp-server-no-auth-required',
+    access_token: 'mock_token',
     token_type: 'Bearer',
     expires_in: 3600
   };
 });
-// Global CORS and headers middleware
-fastify.addHook('onRequest', async (request, reply) => {
-  reply.header('Access-Control-Allow-Origin', '*');
-  reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  reply.header('Cache-Control', 'no-store');
+
+// SSE endpoint for MCP
+fastify.get('/sse', async (request, reply) => {
+  reply.raw.setHeader('Content-Type', 'text/event-stream');
+  reply.raw.setHeader('Cache-Control', 'no-cache');
+  reply.raw.setHeader('Connection', 'keep-alive');
+  reply.raw.write('data: {"type":"connected"}\n\n');
 });
-// Handle OPTIONS for all routes
+
+// CORS preflight handler
 fastify.options('*', async (request, reply) => {
   reply.code(204).send();
 });
-// MCP base endpoint - returns server manifest
-fastify.route({
-  method: ['GET', 'POST'],
-  url: '/mcp',
-  handler: async (request, reply) => {
-    reply.type('application/json');
-    return {
-      name: 'oura_mcp_server',
-      version: '1.0.0',
-      description: 'Oura Ring MCP Server for sleep tracking and training recommendations',
-      ok: true
-    };
-  }
-});
-// SSE endpoint for MCP protocol - handles GET and POST differently
-fastify.route({
-  method: ['GET', 'POST'],
-  url: '/sse',
-  handler: async (request, reply) => {
-    if (request.method === 'GET') {
-      // GET: Start SSE stream
-      // Validate Origin header
-      const origin = request.headers.origin;
-      const allowedOrigins = ['http://poke.com', 'https://poke.com', 'http://localhost', 'http://localhost:3000', 'http://127.0.0.1', 'http://127.0.0.1:3000'];
-      
-      if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
-        return reply.code(403).send({ error: 'Origin not allowed' });
-      }
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      });
-      // Send initial connection message
-      reply.raw.write('event: endpoint\ndata: /messages\n\n');
-      // Keep connection alive with periodic heartbeats
-      const heartbeatInterval = setInterval(() => {
-        reply.raw.write(`:heartbeat\n\n`);
-      }, 30000);
-      request.raw.on('close', () => {
-        clearInterval(heartbeatInterval);
-      });
-    } else if (request.method === 'POST') {
-      // POST: Handle JSON-RPC like /messages endpoint
-      const { jsonrpc, id, method, params } = request.body;
-      if (jsonrpc !== '2.0') {
-        return reply.code(400).send({
-          jsonrpc: '2.0',
-          id,
-          error: { code: -32600, message: 'Invalid Request' }
-        });
-      }
-      switch (method) {
-        case 'initialize':
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              protocolVersion: '2025-03-26',
-              capabilities: {
-                tools: {}
-              },
-              serverInfo: {
-                name: 'oura_mcp_server',
-                version: '1.0.0'
-              }
-            }
-          };
-        case 'tools/list':
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              tools: [
-                {
-                  name: 'oura_sleep_check',
-                  description: 'Check sleep data and determine if user should rest or train',
-                  inputSchema: {
-                    type: 'object',
-                    properties: {
-                      forceAlert: {
-                        type: 'boolean',
-                        description: 'Force an alert regardless of sleep score'
-                      }
-                    }
-                  }
-                },
-                {
-                  name: 'oura_sleep_summary',
-                  description: 'Get weekly sleep summary',
-                  inputSchema: {
-                    type: 'object',
-                    properties: {}
-                  }
-                }
-              ]
-            }
-          };
-        case 'tools/call':
-          const { name, arguments: args = {} } = params;
-          let result;
-          switch (name) {
-            case 'oura_sleep_check':
-              result = handleOuraSleepCheck(args);
-              break;
-            case 'oura_sleep_summary':
-              result = handleOuraSleepSummary(args);
-              break;
-            default:
-              return reply.code(404).send({
-                jsonrpc: '2.0',
-                id,
-                error: { code: -32601, message: `Tool '${name}' not found` }
-              });
-          }
-          return {
-            jsonrpc: '2.0',
-            id,
-            result: {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(result, null, 2)
-                }
-              ]
-            }
-          };
-        default:
-          return reply.code(404).send({
-            jsonrpc: '2.0',
-            id,
-            error: { code: -32601, message: `Method '${method}' not found` }
-          });
-      }
-    }
-  }
-});
-// MCP JSON-RPC endpoint for tool calls
-fastify.post('/messages', async (request, reply) => {
-  const { jsonrpc, id, method, params } = request.body;
-  if (jsonrpc !== '2.0') {
-    return reply.code(400).send({
-      jsonrpc: '2.0',
-      id,
-      error: { code: -32600, message: 'Invalid Request' }
-    });
-  }
-  switch (method) {
-    case 'initialize':
-      return {
-        jsonrpc: '2.0',
-        id,
-        result: {
-          protocolVersion: '2025-03-26',
-          capabilities: {
-            tools: {}
-          },
-          serverInfo: {
-            name: 'oura_mcp_server',
-            version: '1.0.0'
-          }
-        }
-      };
-    case 'tools/list':
-      return {
-        jsonrpc: '2.0',
-        id,
-        result: {
-          tools: [
-            {
-              name: 'oura_sleep_check',
-              description: 'Check sleep data and determine if user should rest or train',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  forceAlert: {
-                    type: 'boolean',
-                    description: 'Force an alert regardless of sleep score'
-                  }
-                }
-              }
-            },
-            {
-              name: 'oura_sleep_summary',
-              description: 'Get weekly sleep summary',
-              inputSchema: {
-                type: 'object',
-                properties: {}
-              }
-            }
-          ]
-        }
-      };
-    case 'tools/call':
-      const { name, arguments: args = {} } = params;
-      let result;
-      switch (name) {
-        case 'oura_sleep_check':
-          result = handleOuraSleepCheck(args);
-          break;
-        case 'oura_sleep_summary':
-          result = handleOuraSleepSummary(args);
-          break;
-        default:
-          return reply.code(404).send({
-            jsonrpc: '2.0',
-            id,
-            error: { code: -32601, message: `Tool '${name}' not found` }
-          });
-      }
-      return {
-        jsonrpc: '2.0',
-        id,
-        result: {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2)
-            }
-          ]
-        }
-      };
-    default:
-      return reply.code(404).send({
-        jsonrpc: '2.0',
-        id,
-        error: { code: -32601, message: `Method '${method}' not found` }
-      });
-  }
-});
-// List available MCP tools
-fastify.get('/mcp/tools', async (request, reply) => {
+
+// Root route
+fastify.get('/', async (request, reply) => {
   reply.type('application/json');
-  return {
-    tools: [
-      {
-        name: 'oura_sleep_check',
-        description: 'Check sleep data and determine if user should rest or train',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            forceAlert: {
-              type: 'boolean',
-              description: 'Force an alert regardless of sleep score'
-            }
-          }
-        }
-      },
-      {
-        name: 'oura_sleep_summary',
-        description: 'Get weekly sleep summary',
-        inputSchema: {
-          type: 'object',
-          properties: {}
+  return { ok: true, service: 'oura_mcp_server' };
+});
+
+// Main MCP endpoint that lists available tools
+fastify.get('/mcp', async (request, reply) => {
+  return { ok: true };
+});
+
+fastify.post('/mcp', async (request, reply) => {
+  return { ok: true };
+});
+
+// Endpoint to list available tools
+fastify.get('/mcp/tools', async (request, reply) => {
+  return [
+    {
+      name: 'oura_sleep_check',
+      description: 'Checks Oura sleep data and provides rest/train recommendation',
+      parameters: {
+        forceAlert: {
+          type: 'boolean',
+          description: 'Force an alert regardless of sleep score',
+          default: false
         }
       }
-    ]
-  };
+    },
+    {
+      name: 'oura_sleep_summary',
+      description: 'Get weekly sleep summary from Oura data',
+      parameters: {}
+    }
+  ];
 });
-// Run MCP tool endpoint
-fastify.post('/mcp/tools/run', async (request, reply) => {
-  const { tool, args = {} } = request.body;
-  if (!tool) {
-    return reply.code(400).send({ error: 'Tool name is required' });
-  }
+
+// Tool execution endpoint
+fastify.post('/mcp/tools/:tool', async (request, reply) => {
+  const { tool } = request.params;
+  const args = request.body || {};
+  
   switch (tool) {
     case 'oura_sleep_check':
       return handleOuraSleepCheck(args);
@@ -351,6 +136,7 @@ fastify.post('/mcp/tools/run', async (request, reply) => {
       return reply.code(404).send({ error: `Tool '${tool}' not found` });
   }
 });
+
 // Handler for oura_sleep_check tool
 function handleOuraSleepCheck(args) {
   const { forceAlert = false } = args;
@@ -373,6 +159,7 @@ function handleOuraSleepCheck(args) {
       : `✅ Sleep score is ${sleepScore}. You're good to train!`
   };
 }
+
 // Handler for oura_sleep_summary tool
 function handleOuraSleepSummary(args) {
   // Placeholder data (would come from Oura API integration)
@@ -384,6 +171,7 @@ function handleOuraSleepSummary(args) {
     message: '📊 Your sleep has been improving this week. Keep it up!'
   };
 }
+
 // Start server
 const start = async () => {
   try {
@@ -394,4 +182,5 @@ const start = async () => {
     process.exit(1);
   }
 };
+
 start();

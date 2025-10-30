@@ -52,24 +52,25 @@ fastify.get('/mcp', async (request, reply) => {
   return {
     name: 'oura_mcp_server',
     version: '1.0.0',
-    description: 'Oura Ring sleep data MCP server for Poke',
+    ok: true,
     tools: [
       {
         name: 'oura_sleep_check',
-        description: 'Check your sleep quality and get a recommendation whether to train or rest today.',
+        description: 'Check your sleep and get training recommendation',
         inputSchema: {
           type: 'object',
           properties: {
             forceAlert: {
               type: 'boolean',
-              description: 'Force an alert for testing (default: false)'
+              description: 'Force an alert for testing purposes',
+              default: false
             }
           }
         }
       },
       {
         name: 'oura_sleep_summary',
-        description: 'Get a weekly summary of your sleep data.',
+        description: 'Get a summary of your weekly sleep trends',
         inputSchema: {
           type: 'object',
           properties: {}
@@ -80,18 +81,22 @@ fastify.get('/mcp', async (request, reply) => {
 });
 
 fastify.get('/mcp/tools', async (request, reply) => {
-  reply.header('Content-Type', 'application/json; charset=utf-8');
-  reply.header('Cache-Control', 'no-store');
   return {
     tools: [
-      { name: 'oura_sleep_check' },
-      { name: 'oura_sleep_summary' }
+      {
+        name: 'oura_sleep_check',
+        description: 'Check your sleep and get training recommendation'
+      },
+      {
+        name: 'oura_sleep_summary',
+        description: 'Get a summary of your weekly sleep trends'
+      }
     ]
   };
 });
 
 fastify.post('/mcp', async (request, reply) => {
-  const { tool, args } = request.body || {};
+  const { tool, args } = request.body;
   
   switch (tool) {
     case 'oura_sleep_check':
@@ -102,6 +107,115 @@ fastify.post('/mcp', async (request, reply) => {
     
     default:
       return reply.code(404).send({ error: `Tool '${tool}' not found` });
+  }
+});
+
+// SSE endpoint for MCP SSE transport
+fastify.get('/mcp/sse', async (request, reply) => {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+
+  // Send initial connection message
+  reply.raw.write('event: endpoint\n');
+  reply.raw.write('data: {"endpoint":"/mcp/message"}\n\n');
+
+  // Keep connection alive with periodic heartbeat
+  const heartbeat = setInterval(() => {
+    reply.raw.write(': heartbeat\n\n');
+  }, 30000);
+
+  // Clean up on disconnect
+  request.raw.on('close', () => {
+    clearInterval(heartbeat);
+  });
+});
+
+// Message endpoint for MCP SSE transport
+fastify.post('/mcp/message', async (request, reply) => {
+  try {
+    const { method, params } = request.body;
+
+    // Handle different MCP methods
+    switch (method) {
+      case 'initialize':
+        return {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: 'oura_mcp_server',
+            version: '1.0.0'
+          }
+        };
+
+      case 'tools/list':
+        return {
+          tools: [
+            {
+              name: 'oura_sleep_check',
+              description: 'Check your sleep and get training recommendation',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  forceAlert: {
+                    type: 'boolean',
+                    description: 'Force an alert for testing purposes',
+                    default: false
+                  }
+                }
+              }
+            },
+            {
+              name: 'oura_sleep_summary',
+              description: 'Get a summary of your weekly sleep trends',
+              inputSchema: {
+                type: 'object',
+                properties: {}
+              }
+            }
+          ]
+        };
+
+      case 'tools/call':
+        const toolName = params?.name;
+        const toolArgs = params?.arguments || {};
+
+        switch (toolName) {
+          case 'oura_sleep_check':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(handleOuraSleepCheck(toolArgs))
+                }
+              ]
+            };
+
+          case 'oura_sleep_summary':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(handleOuraSleepSummary(toolArgs))
+                }
+              ]
+            };
+
+          default:
+            return reply.code(404).send({ error: `Tool '${toolName}' not found` });
+        }
+
+      default:
+        return reply.code(400).send({ error: `Method '${method}' not supported` });
+    }
+  } catch (error) {
+    fastify.log.error(error);
+    return reply.code(500).send({ error: 'Internal server error' });
   }
 });
 

@@ -50,14 +50,18 @@ fastify.get('/status', async (request, reply) => {
 });
 
 // MCP base endpoint - returns server manifest
-fastify.get('/mcp', async (request, reply) => {
-  reply.type('application/json');
-  return {
-    name: 'oura_mcp_server',
-    version: '1.0.0',
-    description: 'Oura Ring MCP Server for sleep tracking and training recommendations',
-    ok: true
-  };
+fastify.route({
+  method: ['GET', 'POST'],
+  url: '/mcp',
+  handler: async (request, reply) => {
+    reply.type('application/json');
+    return {
+      name: 'oura_mcp_server',
+      version: '1.0.0',
+      description: 'Oura Ring MCP Server for sleep tracking and training recommendations',
+      ok: true
+    };
+  }
 });
 
 // SSE endpoint for MCP protocol - handles GET and POST differently

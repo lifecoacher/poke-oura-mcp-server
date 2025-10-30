@@ -1,5 +1,4 @@
 import Fastify from 'fastify';
-
 const fastify = Fastify({ logger: true });
 
 // Configuration from environment variables
@@ -20,6 +19,127 @@ fastify.get('/mcp', async (request, reply) => {
     description: 'Oura Ring MCP Server for sleep tracking and training recommendations',
     ok: true
   };
+});
+
+// SSE endpoint for MCP protocol
+fastify.get('/mcp/sse', async (request, reply) => {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  // Send initial connection message
+  const initialMessage = {
+    jsonrpc: '2.0',
+    method: 'notifications/initialized',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {
+        tools: {}
+      },
+      serverInfo: {
+        name: 'oura_mcp_server',
+        version: '1.0.0'
+      }
+    }
+  };
+  
+  reply.raw.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
+
+  // Keep connection alive with periodic heartbeats
+  const heartbeatInterval = setInterval(() => {
+    reply.raw.write(`:heartbeat\n\n`);
+  }, 30000);
+
+  request.raw.on('close', () => {
+    clearInterval(heartbeatInterval);
+  });
+});
+
+// MCP JSON-RPC endpoint for tool calls
+fastify.post('/mcp/message', async (request, reply) => {
+  const { jsonrpc, id, method, params } = request.body;
+
+  if (jsonrpc !== '2.0') {
+    return reply.code(400).send({
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32600, message: 'Invalid Request' }
+    });
+  }
+
+  switch (method) {
+    case 'tools/list':
+      return {
+        jsonrpc: '2.0',
+        id,
+        result: {
+          tools: [
+            {
+              name: 'oura_sleep_check',
+              description: 'Check sleep data and determine if user should rest or train',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  forceAlert: {
+                    type: 'boolean',
+                    description: 'Force an alert regardless of sleep score'
+                  }
+                }
+              }
+            },
+            {
+              name: 'oura_sleep_summary',
+              description: 'Get weekly sleep summary',
+              inputSchema: {
+                type: 'object',
+                properties: {}
+              }
+            }
+          ]
+        }
+      };
+
+    case 'tools/call':
+      const { name, arguments: args = {} } = params;
+      let result;
+
+      switch (name) {
+        case 'oura_sleep_check':
+          result = handleOuraSleepCheck(args);
+          break;
+        case 'oura_sleep_summary':
+          result = handleOuraSleepSummary(args);
+          break;
+        default:
+          return reply.code(404).send({
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32601, message: `Tool '${name}' not found` }
+          });
+      }
+
+      return {
+        jsonrpc: '2.0',
+        id,
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        }
+      };
+
+    default:
+      return reply.code(404).send({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32601, message: `Method '${method}' not found` }
+      });
+  }
 });
 
 // List available MCP tools

@@ -55,6 +55,15 @@ fastify.get('/health', async (request, reply) => {
 fastify.get('/status', async (request, reply) => {
   return { status: 'ok', service: 'oura-mcp-server' };
 });
+// OAuth token endpoint
+fastify.post('/token', async (request, reply) => {
+  // For MCP without real OAuth, return a simple acknowledgment
+  return {
+    access_token: 'mcp-server-no-auth-required',
+    token_type: 'Bearer',
+    expires_in: 3600
+  };
+});
 // MCP base endpoint - returns server manifest
 fastify.route({
   method: ['GET', 'POST'],

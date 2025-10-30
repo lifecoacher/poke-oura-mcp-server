@@ -64,6 +64,17 @@ fastify.post('/token', async (request, reply) => {
     expires_in: 3600
   };
 });
+// Global CORS and headers middleware
+fastify.addHook('onRequest', async (request, reply) => {
+  reply.header('Access-Control-Allow-Origin', '*');
+  reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  reply.header('Cache-Control', 'no-store');
+});
+// Handle OPTIONS for all routes
+fastify.options('*', async (request, reply) => {
+  reply.code(204).send();
+});
 // MCP base endpoint - returns server manifest
 fastify.route({
   method: ['GET', 'POST'],
